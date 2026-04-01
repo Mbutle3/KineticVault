@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Kinetic Vault Client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "client", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "Kinetic Vault Server",
+      "runtimeExecutable": "/Users/mik3/Library/Python/3.9/bin/uvicorn",
+      "runtimeArgs": [
+        "main:app",
+        "--port", "8000",
+        "--app-dir", "/Users/mik3/Documents/repos/KineticVault/.claude/worktrees/competent-hoover/server"
+      ],
+      "port": 8000
+    }
+  ]
+}

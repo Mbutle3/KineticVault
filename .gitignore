@@ -63,3 +63,8 @@ venv.bak/
 # OS
 .DS_Store
 Thumbs.db
+
+# Node
+client/node_modules/
+client/dist/
+client/.vite/
