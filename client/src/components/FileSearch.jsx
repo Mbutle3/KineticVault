@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { apiFetch } from '../lib/apiFetch.js'
+import { apiFetch, isMockMode } from '../lib/apiFetch.js'
 
 function fileIcon(file) {
   if (file.type === 'folder') return '📁'
@@ -38,14 +38,15 @@ export default function FileSearch({ root, rootLabel, onPick, onError }) {
 
   const runSearch = useCallback(async () => {
     const q = debounced.trim()
-    if (!q || !root) {
+    const effectiveRoot = root || (isMockMode() ? '/demo' : '')
+    if (!q || !effectiveRoot) {
       setResults([])
       setLoading(false)
       return
     }
     setLoading(true)
     try {
-      const url = `/api/files/search?q=${encodeURIComponent(q)}&root=${encodeURIComponent(root)}&limit=150`
+      const url = `/api/files/search?q=${encodeURIComponent(q)}&root=${encodeURIComponent(effectiveRoot)}&limit=150`
       const res = await apiFetch(url)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -102,7 +103,7 @@ export default function FileSearch({ root, rootLabel, onPick, onError }) {
         type="search"
         autoComplete="off"
         spellCheck={false}
-        placeholder={root ? 'Search files…' : 'Search files… (loading)'}
+        placeholder={root || isMockMode() ? 'Search files…' : 'Search files… (loading)'}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => setOpen(true)}
