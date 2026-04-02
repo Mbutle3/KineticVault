@@ -1,0 +1,12 @@
+{
+  "name": "kinetic-vault",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "cd server && python3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:web": "cd client && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -1,61 +1,5 @@
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-
-// Map file extension → Prism language id
-function detectLanguage(filename) {
-  const ext = (filename ?? '').split('.').pop().toLowerCase()
-  const map = {
-    js: 'javascript', jsx: 'jsx',
-    ts: 'typescript', tsx: 'tsx',
-    py: 'python',
-    json: 'json', jsonc: 'json',
-    md: 'markdown',
-    html: 'html', htm: 'html',
-    css: 'css', scss: 'scss', sass: 'scss',
-    sh: 'bash', bash: 'bash', zsh: 'bash',
-    sql: 'sql',
-    yaml: 'yaml', yml: 'yaml',
-    toml: 'toml',
-    rs: 'rust',
-    go: 'go',
-    java: 'java',
-    c: 'c', cpp: 'cpp', h: 'cpp',
-    rb: 'ruby',
-    php: 'php',
-    xml: 'xml',
-    env: 'bash',
-  }
-  return map[ext] ?? null
-}
-
-// Override syntax highlighter colours to match KV green accent palette
-const kvStyle = {
-  ...vscDarkPlus,
-  'pre[class*="language-"]': {
-    ...vscDarkPlus['pre[class*="language-"]'],
-    background: 'var(--bg-surface)',
-    margin: 0,
-    padding: '14px',
-    fontSize: '12px',
-    lineHeight: '1.65',
-  },
-  'code[class*="language-"]': {
-    ...vscDarkPlus['code[class*="language-"]'],
-    background: 'none',
-    textShadow: 'none',
-  },
-  // Tint keywords & punctuation with the accent green
-  keyword:   { color: '#00ff88' },
-  builtin:   { color: '#00cc6a' },
-  function:  { color: '#7effc4' },
-  'class-name': { color: '#7effc4' },
-  string:    { color: '#a8ff9e' },
-  number:    { color: '#6bffb0' },
-  boolean:   { color: '#00ff88' },
-  comment:   { color: '#3d3d3d', fontStyle: 'italic' },
-  operator:  { color: '#aaaaaa' },
-  punctuation: { color: '#555555' },
-}
+import { useEffect } from 'react'
+import { rawFileUrl } from '../lib/filePreviewKind.js'
 
 function TabBar({ openTabs, activeTab, onTabSelect, onTabClose }) {
   return (
@@ -81,20 +25,111 @@ function TabBar({ openTabs, activeTab, onTabSelect, onTabClose }) {
   )
 }
 
-export default function FilePreview({ openTabs, activeTab, onTabSelect, onTabClose }) {
+function PreviewChrome({ openTabs, activeTab, onTabSelect, onTabClose, previewExpanded, onToggleExpand }) {
+  if (openTabs.length === 0) return null
+  return (
+    <div className="file-preview__chrome">
+      <TabBar
+        openTabs={openTabs}
+        activeTab={activeTab}
+        onTabSelect={onTabSelect}
+        onTabClose={onTabClose}
+      />
+      <button
+        type="button"
+        className="file-preview__expand"
+        title={previewExpanded ? 'Show file list (Escape)' : 'Expand preview to full width'}
+        aria-label={previewExpanded ? 'Show file list' : 'Expand preview to full width'}
+        aria-pressed={previewExpanded}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggleExpand?.()
+        }}
+      >
+        {previewExpanded ? '⧉' : '⛶'}
+      </button>
+    </div>
+  )
+}
+
+function BinaryFallback({ path, name }) {
+  const src = rawFileUrl(path)
+  return (
+    <div className="file-preview__binary">
+      <p className="file-preview__binary-msg">No in-app preview for this file type.</p>
+      <p className="file-preview__binary-hint">CSV, SQL, XML, LaTeX, and plain text open in the editor. Download or open below.</p>
+      <div className="file-preview__binary-actions">
+        <a className="file-preview__binary-link" href={src} download={name}>
+          Download
+        </a>
+        <a className="file-preview__binary-link" href={src} target="_blank" rel="noopener noreferrer">
+          Open externally
+        </a>
+      </div>
+    </div>
+  )
+}
+
+function MediaPane({ path, name, kind }) {
+  const src = rawFileUrl(path)
+
+  if (kind === 'pdf') {
+    return (
+      <iframe
+        className="file-preview__iframe"
+        title={name}
+        src={`${src}#view=FitH`}
+      />
+    )
+  }
+
+  if (kind === 'image') {
+    return (
+      <div className="file-preview__img-wrap">
+        <img className="file-preview__img" src={src} alt="" />
+      </div>
+    )
+  }
+
+  return <BinaryFallback path={path} name={name} />
+}
+
+export default function FilePreview({
+  openTabs,
+  activeTab,
+  onTabSelect,
+  onTabClose,
+  previewExpanded = false,
+  onToggleExpand,
+  onActiveFileContentChange,
+  onRequestSaveNow,
+}) {
   const current = openTabs.find((t) => t.path === activeTab) ?? null
-  const lang = current ? detectLanguage(current.name) : null
+  const kind = current?.previewKind ?? 'text'
+
+  useEffect(() => {
+    function onKey(e) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== 's') return
+      const el = document.activeElement
+      if (el?.closest?.('.file-preview__editor')) {
+        e.preventDefault()
+        onRequestSaveNow?.()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onRequestSaveNow])
 
   return (
     <div className="file-preview">
-      {openTabs.length > 0 && (
-        <TabBar
-          openTabs={openTabs}
-          activeTab={activeTab}
-          onTabSelect={onTabSelect}
-          onTabClose={onTabClose}
-        />
-      )}
+      <PreviewChrome
+        openTabs={openTabs}
+        activeTab={activeTab}
+        onTabSelect={onTabSelect}
+        onTabClose={onTabClose}
+        previewExpanded={previewExpanded}
+        onToggleExpand={onToggleExpand}
+      />
 
       {!current ? (
         <div className="file-preview__empty">
@@ -107,21 +142,19 @@ export default function FilePreview({ openTabs, activeTab, onTabSelect, onTabClo
           <span className="spinner" style={{ width: 20, height: 20 }} />
           <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Loading…</span>
         </div>
+      ) : kind !== 'text' ? (
+        <div className={`file-preview__content file-preview__content--media ${kind === 'binary' ? 'file-preview__content--binary' : ''}`}>
+          <MediaPane path={current.path} name={current.name} kind={kind} />
+        </div>
       ) : (
-        <div className="file-preview__content">
-          {lang ? (
-            <SyntaxHighlighter
-              language={lang}
-              style={kvStyle}
-              showLineNumbers
-              lineNumberStyle={{ color: '#2e2e2e', minWidth: '2.5em', userSelect: 'none' }}
-              wrapLongLines={false}
-            >
-              {current.content ?? ''}
-            </SyntaxHighlighter>
-          ) : (
-            <pre className="file-preview__plain">{current.content ?? ''}</pre>
-          )}
+        <div className="file-preview__content file-preview__content--editable">
+          <textarea
+            className="file-preview__editor"
+            value={current.content ?? ''}
+            onChange={(e) => onActiveFileContentChange?.(e.target.value)}
+            spellCheck={false}
+            aria-label={`Edit ${current.name}`}
+          />
         </div>
       )}
     </div>

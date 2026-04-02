@@ -1,39 +1,52 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
-const PINNED = [
-  { name: 'project-notes.md', icon: '★', path: '/tmp/project-notes.md' },
-  { name: 'config.json',      icon: '★', path: '/tmp/config.json'      },
-  { name: 'README.md',        icon: '★', path: '/tmp/README.md'        },
-]
+function buildVaultTree(roots) {
+  const base = [{ name: 'Root', icon: '⊟', path: '/', depth: 0, isFolder: true }]
+  if (!roots?.home) return base
+  const items = [
+    ...base,
+    { name: 'Documents', icon: '▶', path: roots.documents, depth: 1, isFolder: true },
+    { name: 'Media', icon: '▶', path: roots.media, depth: 1, isFolder: true },
+  ]
+  if (roots.system) {
+    items.push({ name: 'System', icon: '▶', path: roots.system, depth: 1, isFolder: true })
+  }
+  items.push({ name: 'Trash', icon: '▶', path: roots.trash, depth: 1, isFolder: true })
+  return items
+}
 
-const VAULT_TREE = [
-  { name: 'Root',      icon: '⊟', path: '/',          depth: 0, isFolder: true },
-  { name: 'Documents', icon: '▶', path: '/Documents', depth: 1, isFolder: true },
-  { name: 'Media',     icon: '▶', path: '/Media',     depth: 1, isFolder: true },
-  { name: 'System',    icon: '▶', path: '/System',    depth: 1, isFolder: true },
-  { name: 'Trash',     icon: '▶', path: '/Trash',     depth: 1, isFolder: true },
-]
+export default function Sidebar({
+  onSelectFolder,
+  onOpenFile,
+  currentPath,
+  pinRefreshToken = 0,
+  onUnpinPath,
+  onPinnedContextMenu,
+}) {
+  const [roots, setRoots] = useState(null)
+  const [expandedProjects, setExpandedProjects] = useState({})
 
-const PROJECTS = [
-  {
-    name: 'kinetic-vault',
-    path: '/projects/kinetic-vault',
-    expanded: true,
-    children: [
-      { name: 'client', path: '/projects/kinetic-vault/client' },
-      { name: 'server', path: '/projects/kinetic-vault/server' },
-    ],
-  },
-  {
-    name: 'archive',
-    path: '/projects/archive',
-    expanded: false,
-    children: [],
-  },
-]
+  useEffect(() => {
+    fetch('/api/files/home')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setRoots)
+      .catch(() => setRoots(null))
+  }, [pinRefreshToken])
 
-export default function Sidebar({ onSelectFolder, currentPath }) {
-  const [expandedProjects, setExpandedProjects] = useState({ 'kinetic-vault': true })
+  useEffect(() => {
+    if (!roots?.projects?.length) return
+    setExpandedProjects((prev) => {
+      const next = { ...prev }
+      for (const p of roots.projects) {
+        if (!(p.name in next)) next[p.name] = Boolean(p.expanded)
+      }
+      return next
+    })
+  }, [roots])
+
+  const vaultTree = useMemo(() => buildVaultTree(roots), [roots])
+  const projects = roots?.projects ?? []
+  const pinned = roots?.pinned ?? []
 
   function toggleProject(name) {
     setExpandedProjects((prev) => ({ ...prev, [name]: !prev[name] }))
@@ -41,32 +54,47 @@ export default function Sidebar({ onSelectFolder, currentPath }) {
 
   return (
     <aside className="sidebar">
-      {/* PINNED */}
+      {pinned.length > 0 && (
       <div className="sidebar__section">
         <div className="sidebar__section-header">
           <span className="sidebar__section-label">Pinned</span>
         </div>
-        {PINNED.map((item) => (
+        {pinned.map((item) => (
           <div
             key={item.path}
             className={`sidebar__item ${currentPath === item.path ? 'active' : ''}`}
-            onClick={() => onSelectFolder(item.path)}
+            onClick={() =>
+              item.kind === 'file'
+                ? onOpenFile?.({ path: item.path, name: item.name, type: 'file' })
+                : onSelectFolder(item.path)
+            }
+            onContextMenu={(e) => onPinnedContextMenu?.(e, item)}
             title={item.path}
           >
-            <span className="sidebar__item-icon" style={{ color: 'var(--accent)', fontSize: '11px' }}>
-              {item.icon}
-            </span>
+            <button
+              type="button"
+              className="sidebar__item-pin-btn"
+              title="Unpin"
+              aria-label={`Unpin ${item.name}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                onUnpinPath?.(item.path)
+              }}
+            >
+              ★
+            </button>
             <span className="sidebar__item-name">{item.name}</span>
           </div>
         ))}
       </div>
+      )}
 
       {/* VAULT EXPLORER */}
       <div className="sidebar__section">
         <div className="sidebar__section-header">
           <span className="sidebar__section-label">Vault Explorer</span>
         </div>
-        {VAULT_TREE.map((item) => (
+        {vaultTree.map((item) => (
           <div
             key={item.path}
             className={`sidebar__tree-item ${currentPath === item.path ? 'active' : ''}`}
@@ -89,7 +117,7 @@ export default function Sidebar({ onSelectFolder, currentPath }) {
           <span className="sidebar__section-label">Projects</span>
           <button className="sidebar__add-btn" title="Add project">＋</button>
         </div>
-        {PROJECTS.map((project) => (
+        {projects.map((project) => (
           <div key={project.name}>
             <div
               className={`sidebar__tree-item ${currentPath === project.path ? 'active' : ''}`}

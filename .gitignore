@@ -60,11 +60,15 @@ venv.bak/
 *.swp
 *.swo
 
+# Cursor / local worktree copies (not the real app; do not commit)
+.claire/
+.claude/worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
 
-# Node
-client/node_modules/
+# Node — never commit dependencies (reinstall with npm install)
+node_modules/
 client/dist/
 client/.vite/
