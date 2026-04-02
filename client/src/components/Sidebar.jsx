@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { apiFetch } from '../lib/apiFetch.js'
 
 function buildVaultTree(roots) {
   const base = [{ name: 'Root', icon: '⊟', path: '/', depth: 0, isFolder: true }]
@@ -27,7 +28,7 @@ export default function Sidebar({
   const [expandedProjects, setExpandedProjects] = useState({})
 
   useEffect(() => {
-    fetch('/api/files/home')
+    apiFetch('/api/files/home')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setRoots)
       .catch(() => setRoots(null))
@@ -115,7 +116,6 @@ export default function Sidebar({
       <div className="sidebar__section">
         <div className="sidebar__section-header">
           <span className="sidebar__section-label">Projects</span>
-          <button className="sidebar__add-btn" title="Add project">＋</button>
         </div>
         {projects.map((project) => (
           <div key={project.name}>

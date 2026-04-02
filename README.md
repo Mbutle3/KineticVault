@@ -4,6 +4,30 @@ A hybrid **AI-ready file explorer**: React + Vite UI, FastAPI filesystem API, mo
 
 **Look & feel:** UI chrome uses **soft neutral grays** (light: white panels on `#f1f3f4`; dark: lifted charcoal around `#454545` / `#505050`—not a heavy blue wash). **Google-style accents** (blue / **deep red** “Kinetic” in the header / green / yellow for states) appear in the wordmark, links, and status colors. **Dark mode** uses **high-contrast white** copy in the file list, sidebar, command bar, and empty/preview placeholders so breadcrumbs, table text, and AI chrome stay readable.
 
+---
+
+## Read this first (local-only)
+
+Kinetic Vault is a **local power tool**. The backend API can **create / overwrite / rename / duplicate / delete** files within its allowed scope. It is intended to run on **your machine** with the API bound to **`127.0.0.1`** and the UI at **`http://localhost:5173`**.
+
+- **Do not expose the API port to the internet.**
+- **Token required (recommended default)**: the real API refuses to start unless `KV_API_TOKEN` is set (override only for insecure localhost dev via `KV_REQUIRE_TOKEN=0`). The UI can set the token per-browser via **Command Bar → “Token: on/off”**.
+- **Portfolio-safe demo**: `npm run demo` starts a **mock UI** (no FastAPI, no filesystem) and shows a **“Mock mode”** pill in the header.
+
+**Threat model (one paragraph):** If you run this on an untrusted network or accidentally expose the API publicly, any party that can reach the API could attempt filesystem actions (read/write/delete) within the server’s permitted scope. With optional AI features enabled, prompts may also transmit **directory listings** and (for “summarize this file”) **file text contents** to third-party providers. Treat this as a localhost-only developer tool, keep secrets out of git, and enable `KV_API_TOKEN` for demos.
+
+---
+
+## Project status
+
+**Portfolio-ready** for a local-first demo: mock mode is safe by default, and real mode is token-gated.
+
+Suggested finishing touches:
+- Add **screenshots** + a short **demo video** to this README.
+- (Optional) Add **CI** (build/lint) for an extra “professional repo” signal.
+
+Dependency note: `npm audit` currently reports **0 vulnerabilities** on the provided setup.
+
 ```
 kinetic-vault/
 ├── package.json     # root: `npm run dev` runs API + Vite (concurrently)
@@ -35,6 +59,14 @@ npm run dev
 ```
 
 This starts **Uvicorn** and **Vite** in parallel. `dev:api` uses your default `python3`; use a venv if you prefer, and ensure that interpreter has the server requirements installed.
+
+### Demo (safe, mock UI only)
+
+```bash
+npm run demo
+```
+
+This starts the UI with **mocked data** and **no filesystem access**.
 
 ### Option B — two terminals
 
@@ -154,6 +186,79 @@ cd server && pip install -r requirements.txt && uvicorn main:app --reload --host
 
 ---
 
+## Safety notes for a public repo
+
+This repo is intended for **local** use (your machine, `localhost`). The backend can **create/rename/duplicate/delete** files within its allowed scope (your home directory + this repo) and may send text to **Anthropic**/**OpenAI** if you enable those keys.
+
+- **Do not expose the API port to the internet.** Keep it bound to `127.0.0.1` behind your browser.
+- **Optional API token**: Set `KV_API_TOKEN` in `server/.env` to require `x-kv-token` (or `Authorization: Bearer …`) for all `/api/*` requests.
+- **AI rate limit**: `KV_AI_RATE_LIMIT_PER_MIN` limits `/api/ai/*` requests per client IP per minute (default 60) to prevent accidental spend.
+- **Keys**: Never commit `.env`. Rotate keys if you accidentally paste them in commits or screenshots.
+
+## What data can leave your machine (disclosure)
+
+Kinetic Vault is **local-first**: file listing, preview, editing, rename/duplicate/delete, pins, and search all run against the local FastAPI server on your machine.
+
+Optional features may send data to third parties if you configure keys:
+
+- **Claude (Anthropic)** (`ANTHROPIC_API_KEY`):
+  - **Free-form prompts**: sends your command text plus lightweight app context (current folder path, active file path/name when available).
+  - **Folder questions**: may include **directory listings** (file/folder names) from the backend to ground answers.
+  - **Summarize this file**: sends the file’s **text contents** (truncated if long) to Anthropic.
+- **Read aloud (OpenAI TTS)** (`OPENAI_API_KEY`):
+  - Sends the **AI reply text** (after stripping basic formatting) to OpenAI and receives audio back.
+- **Voice input (browser speech recognition)**:
+  - Uses your browser’s speech recognition engine; depending on browser/vendor, audio may be processed by their service.
+
+## Demo checklist (for recruiters / friends)
+
+1. **Run it**
+
+```bash
+# macOS/Linux (MOCK UI only — safest)
+npm run demo
+
+# cross-platform (Windows/macOS/Linux) (MOCK UI only — safest)
+npm run demo:bootstrap
+```
+
+2. **Open the UI**
+   - App: `http://localhost:5173`
+   - You should see a **“Mock mode”** pill in the header.
+   - In mock mode there is **no API** and **no filesystem access**.
+
+3. **Run the real app (token required)**
+   - Copy `server/.env.example` → `server/.env`
+   - Set `KV_API_TOKEN=<your token>` (required by default; see `KV_REQUIRE_TOKEN`)
+   - Start API + UI:
+
+```bash
+npm run dev
+```
+
+   - API health: `http://127.0.0.1:8000/`
+   - API docs: `http://127.0.0.1:8000/docs`
+
+4. **Verify token protection**
+   - Generate a token:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+   - In `server/.env`, set `KV_API_TOKEN=<paste token>` and restart the API.
+   - In the UI, click **Command Bar → `Token: off`** and paste the same token (stored only in your browser’s `localStorage`).
+   - Quick verification:
+     - Without setting the token in the UI, `/api/*` requests should fail with **401**.
+     - After setting the token, the same requests should succeed and include `x-kv-token` in the browser Network tab.
+
+5. **(Optional) Enable Claude + Read aloud**
+   - Claude: set `ANTHROPIC_API_KEY` in `server/.env`.
+   - Natural Read aloud: set `OPENAI_API_KEY` in `server/.env` (otherwise it uses the browser voice).
+
+6. **Permissions**
+   - Voice input requires browser mic permission. If blocked, use typed commands.
+
 ## Configuration & tooling
 
 - **CORS**: `server/main.py` allows `http://localhost:5173`.
@@ -161,6 +266,8 @@ cd server && pip install -r requirements.txt && uvicorn main:app --reload --host
 - **Default theme**: **Light** on first visit unless `localStorage` has `kv-theme=dark`.
 - **Git**: `.claire/` and `.claude/worktrees/` are ignored (IDE worktree copies). **`node_modules/`** is ignored everywhere—do not commit it; run `npm install` locally. Commit **`package-lock.json`** at the repo root (and in `client/`) for reproducible installs, not the `node_modules` tree.
 - **Secrets**: Put keys in **`server/.env`** or the **repository root** `.env` (both are gitignored). If both exist, **`server/.env` wins**. Restart the API after changing env vars so Uvicorn reload picks them up.
+- **CORS origins**: Set `KV_CORS_ORIGINS` (comma-separated) to match your frontend origin if you change ports/domains.
+- **Token required by default**: The real API refuses to start unless `KV_API_TOKEN` is set. Override only for insecure localhost dev via `KV_REQUIRE_TOKEN=0`.
 
 ### Frontend implementation notes (recent)
 

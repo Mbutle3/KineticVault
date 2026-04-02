@@ -15,8 +15,10 @@ import {
   persistA11yPrefs,
 } from './lib/accessibilityPrefs.js'
 import { getPreviewKind } from './lib/filePreviewKind.js'
+import { apiFetch, isMockMode } from './lib/apiFetch.js'
 
 export default function App() {
+  const mockMode = isMockMode()
   const [currentPath, setCurrentPath] = useState(null)
   const [files, setFiles] = useState([])
   const [filesLoading, setFilesLoading] = useState(false)
@@ -85,6 +87,18 @@ export default function App() {
     localStorage.setItem('kv-theme', theme)
   }, [theme])
 
+  // Briefly enable smooth crossfade when switching themes (disabled under Reduce motion).
+  useEffect(() => {
+    if (a11yPrefs.reduceMotion) return
+    const el = document.documentElement
+    el.classList.add('kv-theme-transition')
+    const t = window.setTimeout(() => el.classList.remove('kv-theme-transition'), 280)
+    return () => {
+      window.clearTimeout(t)
+      el.classList.remove('kv-theme-transition')
+    }
+  }, [theme, a11yPrefs.reduceMotion])
+
   useEffect(() => {
     applyA11yPrefsToDocument(a11yPrefs)
     persistA11yPrefs(a11yPrefs)
@@ -121,7 +135,7 @@ export default function App() {
   }, [openTabs.length])
 
   useEffect(() => {
-    fetch('/api/files/home')
+    apiFetch('/api/files/home')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((d) => setHomePath(d.home))
       .catch(() => setHomePath(null))
@@ -143,7 +157,7 @@ export default function App() {
   const persistFileContent = useCallback(
     async (path, content) => {
       try {
-        const res = await fetch('/api/files/write', {
+        const res = await apiFetch('/api/files/write', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path, content }),
@@ -181,7 +195,7 @@ export default function App() {
     setSelectedRow(null)
     setFilesLoading(true)
     try {
-      const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`)
+      const res = await apiFetch(`/api/files?path=${encodeURIComponent(path)}`)
       if (!res.ok) {
         const err = await res.json()
         addToast(err.detail || 'Failed to load directory', 'error')
@@ -235,7 +249,7 @@ export default function App() {
     setActiveTab(file.path)
 
     try {
-      const res = await fetch(`/api/files/read?path=${encodeURIComponent(file.path)}`)
+      const res = await apiFetch(`/api/files/read?path=${encodeURIComponent(file.path)}`)
       if (!res.ok) {
         const err = await res.json()
         addToast(err.detail || 'Failed to read file', 'error')
@@ -344,7 +358,7 @@ export default function App() {
   // --- Delete ---
   const deleteFile = useCallback(async (file) => {
     try {
-      const res = await fetch(`/api/files?path=${encodeURIComponent(file.path)}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/files?path=${encodeURIComponent(file.path)}`, { method: 'DELETE' })
       if (!res.ok) {
         const err = await res.json()
         addToast(err.detail || 'Delete failed', 'error')
@@ -366,7 +380,7 @@ export default function App() {
     if (!newName || newName === file.name) return
     flushSaveForPath(file.path)
     try {
-      const res = await fetch('/api/files/rename', {
+      const res = await apiFetch('/api/files/rename', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ old_path: file.path, new_name: newName }),
@@ -403,7 +417,7 @@ export default function App() {
             )
           )
           try {
-            const readRes = await fetch(`/api/files/read?path=${encodeURIComponent(newPath)}`)
+            const readRes = await apiFetch(`/api/files/read?path=${encodeURIComponent(newPath)}`)
             if (readRes.ok) {
               const readData = await readRes.json()
               setOpenTabs((prev) =>
@@ -455,7 +469,7 @@ export default function App() {
     async (file) => {
       if (!file?.path) return
       try {
-        const res = await fetch('/api/files/duplicate', {
+        const res = await apiFetch('/api/files/duplicate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: file.path }),
@@ -525,7 +539,7 @@ export default function App() {
         return
       }
       try {
-        const res = await fetch('/api/files/create', {
+        const res = await apiFetch('/api/files/create', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ parent_path: parentPath, name: trimmed }),
@@ -549,7 +563,7 @@ export default function App() {
   const pinItem = useCallback(
     async (file) => {
       try {
-        const res = await fetch('/api/files/pinned', {
+        const res = await apiFetch('/api/files/pinned', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ path: file.path, name: file.name }),
@@ -575,7 +589,7 @@ export default function App() {
   const unpinPath = useCallback(
     async (path, { showToast = false, displayName } = {}) => {
       try {
-        const res = await fetch(`/api/files/pinned?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+        const res = await apiFetch(`/api/files/pinned?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
         if (!res.ok) {
           addToast('Could not unpin', 'error')
           return
@@ -700,6 +714,11 @@ export default function App() {
           <span className="app-header__logo-r">Kinetic</span>{' '}
           <span className="app-header__logo-g">Vault</span>
         </div>
+        {mockMode && (
+          <div className="kv-pill kv-pill--mock" title="Demo mode: no filesystem access, in-memory mock data">
+            Mock mode
+          </div>
+        )}
         <div className="app-header__search-wrap">
           <FileSearch
             root={currentPath || homePath || ''}

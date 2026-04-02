@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch } from '../lib/apiFetch.js'
 
 function fileIcon(file) {
   if (file.type === 'folder') return '📁'
@@ -45,7 +46,7 @@ export default function FileSearch({ root, rootLabel, onPick, onError }) {
     setLoading(true)
     try {
       const url = `/api/files/search?q=${encodeURIComponent(q)}&root=${encodeURIComponent(root)}&limit=150`
-      const res = await fetch(url)
+      const res = await apiFetch(url)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         onErrorRef.current?.(err.detail || 'Search failed')

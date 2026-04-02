@@ -122,6 +122,12 @@ export default function ContextMenu({
       className="context-menu"
       style={{ top: safeY, left: safeX }}
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+      }}
     >
       {/* File name header */}
       <div style={{ padding: '5px 14px 6px', borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
@@ -152,6 +158,8 @@ export default function ContextMenu({
             key={item.id}
             className={`context-menu__item ${item.danger ? 'danger' : ''}`}
             style={item.disabled ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => handleItem(e, item)}
           >
             <span className="context-menu__icon">{item.icon}</span>

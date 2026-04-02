@@ -4,7 +4,10 @@
   "scripts": {
     "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "cd server && python3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000",
-    "dev:web": "cd client && npm run dev"
+    "dev:web": "cd client && npm run dev",
+    "dev:web:mock": "cd client && VITE_MOCK_MODE=1 npm run dev",
+    "demo": "bash scripts/demo.sh",
+    "demo:bootstrap": "node scripts/demo.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

@@ -139,6 +139,42 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Smooth theme crossfade (only enabled briefly via `html.kv-theme-transition`). */
+html.kv-theme-transition body,
+html.kv-theme-transition .app,
+html.kv-theme-transition .app-header,
+html.kv-theme-transition .sidebar,
+html.kv-theme-transition .file-list,
+html.kv-theme-transition .file-preview,
+html.kv-theme-transition .command-bar,
+html.kv-theme-transition .kv-modal,
+html.kv-theme-transition .kv-modal-overlay,
+html.kv-theme-transition .context-menu {
+  transition:
+    background-color 260ms ease,
+    color 260ms ease,
+    border-color 260ms ease,
+    box-shadow 260ms ease,
+    fill 260ms ease,
+    stroke 260ms ease;
+}
+
+html.kv-theme-transition body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(1200px 520px at 15% 0%, var(--accent-glow), transparent 60%);
+  opacity: 0;
+  animation: kvThemeFlash 260ms ease;
+}
+
+@keyframes kvThemeFlash {
+  0% { opacity: 0; }
+  35% { opacity: 0.55; }
+  100% { opacity: 0; }
+}
+
 [data-reduce-motion="true"] *,
 [data-reduce-motion="true"] *::before,
 [data-reduce-motion="true"] *::after {
@@ -287,6 +323,33 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
 [data-theme="dark"] .app-header__logo-b { color: #8ab4f8; }
 [data-theme="dark"] .app-header__logo-r { color: #ff8a80; }
 [data-theme="dark"] .app-header__logo-g { color: #81c995; }
+
+.kv-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--text-muted);
+  user-select: none;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .kv-pill {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.kv-pill--mock {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--border));
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--text-primary);
+}
 
 .app-header__search-wrap {
   flex: 1;

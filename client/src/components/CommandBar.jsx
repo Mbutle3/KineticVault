@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { prettifyAiText } from '../lib/prettifyAiText.js'
+import { apiFetch, getKvApiToken, setKvApiToken } from '../lib/apiFetch.js'
 
 const QUICK_ACTIONS = [
   'Find recent files',
@@ -176,6 +177,7 @@ export default function CommandBar({ activeFile, currentPath, onOpenAiResult }) 
   ])
   const [loading, setLoading] = useState(false)
   const [listening, setListening] = useState(false)
+  const [apiTokenSet, setApiTokenSet] = useState(() => Boolean(getKvApiToken()))
   /** Index of AI message currently selected for speech (or being read); toggles Stop on same index. */
   const [ttsIndex, setTtsIndex] = useState(null)
   const historyEndRef = useRef(null)
@@ -223,7 +225,7 @@ export default function CommandBar({ activeFile, currentPath, onOpenAiResult }) 
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/ai/tts/status')
+    apiFetch('/api/ai/tts/status')
       .then(async (r) => {
         if (!r.ok) return { enabled: false, provider: null }
         try {
@@ -299,7 +301,7 @@ export default function CommandBar({ activeFile, currentPath, onOpenAiResult }) 
           }
         }
         try {
-          const res = await fetch('/api/ai/tts', {
+          const res = await apiFetch('/api/ai/tts', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: plain }),
@@ -548,6 +550,27 @@ export default function CommandBar({ activeFile, currentPath, onOpenAiResult }) 
     [onOpenAiResult]
   )
 
+  const configureApiToken = useCallback(() => {
+    const current = getKvApiToken()
+    const next = window.prompt(
+      'Optional API token for KV_API_TOKEN (sent as x-kv-token). Leave blank to clear.',
+      current || ''
+    )
+    if (next == null) return
+    setKvApiToken(next)
+    setApiTokenSet(Boolean(getKvApiToken()))
+    setHistory((prev) => [
+      ...prev,
+      {
+        role: 'system',
+        text: getKvApiToken()
+          ? 'API token set for this browser (kv-api-token).'
+          : 'API token cleared for this browser.',
+        time: timestamp(),
+      },
+    ])
+  }, [])
+
   async function sendCommand(command) {
     if (!command.trim() || loading) return
 
@@ -557,7 +580,7 @@ export default function CommandBar({ activeFile, currentPath, onOpenAiResult }) 
     setLoading(true)
 
     try {
-      const res = await fetch('/api/ai/command', {
+      const res = await apiFetch('/api/ai/command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -613,8 +636,18 @@ export default function CommandBar({ activeFile, currentPath, onOpenAiResult }) 
       <div className="command-bar__header">
         <div className="command-bar__status" />
         <span className="command-bar__header-label">AI Command Interface</span>
+        <button
+          type="button"
+          className="command-bar__pill"
+          style={{ marginLeft: 'auto' }}
+          title="Set API token header (KV_API_TOKEN)"
+          onClick={configureApiToken}
+          disabled={loading}
+        >
+          Token: {apiTokenSet ? 'on' : 'off'}
+        </button>
         {activeFile && (
-          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>
+          <span style={{ marginLeft: 10, fontSize: 10, color: 'var(--text-muted)' }}>
             ctx: {activeFile.name}
           </span>
         )}

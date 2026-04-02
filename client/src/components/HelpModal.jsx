@@ -43,6 +43,10 @@ const FAQ = [
     q: 'Why must the API be running?',
     a: 'The UI proxies /api/* to the FastAPI process (default http://127.0.0.1:8000). Without it, listing, search, preview, and writes will fail. From the repository root, npm run dev can start the API and Vite together; see README for alternatives.',
   },
+  {
+    q: 'Is this safe to run with a public repo?',
+    a: 'Treat Kinetic Vault as a local power tool. The API can write/delete files within its allowed scope (your home directory and this repo). Do not expose the API port publicly. For extra safety, set KV_API_TOKEN in server/.env so /api/* requests require a token header (you can set the token in the UI via the Command Bar “Token: on/off” button), and keep AI rate limiting enabled to avoid accidental spend. Never commit API keys.',
+  },
 ]
 
 export default function HelpModal({ open, onClose }) {
