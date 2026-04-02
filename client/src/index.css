@@ -293,6 +293,11 @@ input::placeholder, textarea::placeholder { color: var(--text-muted); }
   z-index: 1;
 }
 
+/* Header above main-area so file-search dropdown (extends below header) isn't covered */
+.app-header.app-layer {
+  z-index: 10;
+}
+
 /* ---------- Top Header ---------- */
 .app-header {
   display: flex;
