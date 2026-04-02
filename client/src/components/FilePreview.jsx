@@ -140,7 +140,7 @@ export default function FilePreview({
       ) : current.loading ? (
         <div className="file-preview__empty">
           <span className="spinner" style={{ width: 20, height: 20 }} />
-          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Loading…</span>
+          <span className="file-preview__empty-hint">Loading…</span>
         </div>
       ) : kind !== 'text' ? (
         <div className={`file-preview__content file-preview__content--media ${kind === 'binary' ? 'file-preview__content--binary' : ''}`}>

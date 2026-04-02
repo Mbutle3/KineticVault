@@ -1,3 +1,14 @@
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load env before routers/services read os.environ.
+# Repo root `.env` first, then `server/.env` (wins) so keys work in either location.
+_server_dir = Path(__file__).resolve().parent
+_repo_root = _server_dir.parent
+load_dotenv(_repo_root / ".env")
+load_dotenv(_server_dir / ".env", override=True)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import files, ai

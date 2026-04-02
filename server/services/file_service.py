@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+from datetime import datetime
 from typing import Optional
 import os
 import shutil
@@ -324,6 +325,47 @@ class FileService:
         # Folders first, then files; both sorted alphabetically (case-insensitive)
         return sorted(entries, key=lambda x: (x["type"] == "file", x["name"].lower()))
 
+    def directory_listing_for_ai(self, path: str, limit: int = 120) -> str:
+        """Plain-text listing for AI prompts (no HTTPException)."""
+        try:
+            p = Path(path).expanduser().resolve()
+        except OSError:
+            return "(Could not resolve path.)"
+
+        if not p.exists():
+            return "(Path does not exist.)"
+        if not p.is_dir():
+            return "(Not a directory.)"
+        if not self._path_allowed_for_client_access(p):
+            return "(Outside allowed workspace: user home or app repository only.)"
+
+        rows: list[dict] = []
+        try:
+            for entry in p.iterdir():
+                try:
+                    rows.append({
+                        "name": entry.name,
+                        "type": "folder" if entry.is_dir() else "file",
+                    })
+                except (OSError, PermissionError):
+                    continue
+        except PermissionError:
+            if self._empty_list_if_trash_denied(p):
+                return "(Folder empty or not readable here — e.g. system Trash.)"
+            return "(Permission denied — cannot list this folder.)"
+
+        if not rows:
+            return "(Empty folder.)"
+
+        rows.sort(key=lambda x: (x["type"] == "file", x["name"].lower()))
+        lines: list[str] = []
+        for e in rows[:limit]:
+            tag = "folder" if e["type"] == "folder" else "file"
+            lines.append(f"- [{tag}] {e['name']}")
+        if len(rows) > limit:
+            lines.append(f"... and {len(rows) - limit} more entries (truncated).")
+        return "\n".join(lines)
+
     def read_file(self, path: str) -> dict:
         p = Path(path)
         if not p.exists():
@@ -541,3 +583,188 @@ class FileService:
             raise HTTPException(status_code=409, detail="Duplicate target already exists")
         except OSError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # --- Bounded scans for AI command bar (recent / largest files) ---
+
+    @staticmethod
+    def _fmt_size(num: int) -> str:
+        n = float(num)
+        for unit in ("B", "KB", "MB", "GB", "TB"):
+            if n < 1024.0 or unit == "TB":
+                if unit == "B":
+                    return f"{int(n)} B"
+                return f"{n:.1f} {unit}"
+            n /= 1024.0
+        return f"{num} B"
+
+    def _is_under_root(self, path: Path, root: Path) -> bool:
+        try:
+            path.resolve().relative_to(root.resolve())
+            return True
+        except ValueError:
+            return False
+
+    def _path_allowed_for_client_access(self, path: Path) -> bool:
+        """Match app scope: user home tree or this repo."""
+        try:
+            p = path.expanduser().resolve()
+        except OSError:
+            return False
+        home = Path.home().resolve()
+        repo = self._repo_root().resolve()
+        return self._is_under_root(p, home) or self._is_under_root(p, repo)
+
+    def _ai_scan_directory_roots(self, current_folder: Optional[str]) -> list[Path]:
+        roots: list[Path] = []
+        seen: set[str] = set()
+
+        def add(p: Path) -> None:
+            try:
+                r = p.expanduser().resolve()
+            except OSError:
+                return
+            if not r.is_dir():
+                return
+            if not self._path_allowed_for_client_access(r):
+                return
+            s = str(r)
+            if s not in seen:
+                seen.add(s)
+                roots.append(r)
+
+        add(self._repo_root())
+        add(Path.home() / "Documents")
+
+        if current_folder:
+            try:
+                cf = Path(current_folder).expanduser().resolve()
+                if cf.is_dir() and self._path_allowed_for_client_access(cf):
+                    add(cf)
+            except OSError:
+                pass
+
+        return roots
+
+    def _walk_files_bounded(
+        self,
+        roots: list[Path],
+        *,
+        max_depth: int = 9,
+        max_files: int = 7000,
+    ) -> list[tuple[Path, float, int]]:
+        """Return (path, mtime, size) for regular files under roots."""
+        out: list[tuple[Path, float, int]] = []
+        budget = max_files
+
+        def on_walk_error(_err):
+            pass
+
+        for root in roots:
+            if budget <= 0:
+                break
+            root_s = str(root)
+            for dirpath, dirnames, filenames in os.walk(
+                root_s, topdown=True, onerror=on_walk_error, followlinks=False
+            ):
+                dirnames[:] = [d for d in dirnames if d not in self._SEARCH_SKIP_DIRS]
+
+                try:
+                    rel = Path(dirpath).resolve().relative_to(root)
+                    depth = 0 if (not rel.parts or rel.parts == (".",)) else len(rel.parts)
+                except ValueError:
+                    continue
+
+                if depth >= max_depth:
+                    dirnames[:] = []
+
+                for name in filenames:
+                    if budget <= 0:
+                        return out
+                    fp = Path(dirpath) / name
+                    try:
+                        if not fp.is_file():
+                            continue
+                        st = fp.stat()
+                        out.append((fp, st.st_mtime, st.st_size))
+                        budget -= 1
+                    except (OSError, PermissionError):
+                        continue
+
+        return out
+
+    def ai_recent_files(self, current_folder: Optional[str] = None, limit: int = 12) -> list[dict]:
+        roots = self._ai_scan_directory_roots(current_folder)
+        files = self._walk_files_bounded(roots)
+        files.sort(key=lambda t: t[1], reverse=True)
+        rows: list[dict] = []
+        for fp, mtime, size in files[:limit]:
+            _ = size
+            label = f"{fp.name} · {datetime.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M')}"
+            rows.append({"text": label, "path": str(fp), "kind": "file"})
+        return rows
+
+    def ai_largest_files(self, current_folder: Optional[str] = None, limit: int = 12) -> list[dict]:
+        roots = self._ai_scan_directory_roots(current_folder)
+        files = self._walk_files_bounded(roots)
+        files.sort(key=lambda t: t[2], reverse=True)
+        rows: list[dict] = []
+        for fp, _mtime, size in files[:limit]:
+            label = f"{fp.name} · {self._fmt_size(size)}"
+            rows.append({"text": label, "path": str(fp), "kind": "file"})
+        return rows
+
+    _AI_SUMMARY_NON_TEXT_EXT = frozenset({
+        ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico", ".avif",
+        ".zip", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".7z", ".rar", ".dmg", ".iso",
+        ".mp4", ".mov", ".avi", ".mkv", ".webm", ".mp3", ".wav", ".flac", ".aac", ".ogg",
+        ".exe", ".dll", ".so", ".dylib", ".bin", ".sqlite", ".db",
+        ".woff", ".woff2", ".ttf", ".otf",
+    })
+
+    def ai_read_text_for_prompt(self, file_path: str, max_chars: int = 120_000) -> dict:
+        """Read a bounded UTF-8 snippet for AI prompts. Keys: ok, text?, name?, message?."""
+        try:
+            p = Path(file_path).expanduser().resolve()
+        except OSError:
+            return {"ok": False, "message": "Could not resolve that file path."}
+
+        if not p.is_file():
+            return {"ok": False, "message": "Open a text file or pick a file in the preview, then try again."}
+
+        if not self._path_allowed_for_client_access(p):
+            return {"ok": False, "message": "That path is outside the allowed workspace."}
+
+        if p.suffix.lower() in self._AI_SUMMARY_NON_TEXT_EXT:
+            return {"ok": False, "message": "Summarize works on text files. Open a .txt, .md, code file, etc."}
+
+        try:
+            raw = p.read_text(encoding="utf-8", errors="replace")
+        except PermissionError:
+            return {"ok": False, "message": "Permission denied reading that file."}
+        except OSError as exc:
+            return {"ok": False, "message": f"Could not read file: {exc}"}
+
+        return {
+            "ok": True,
+            "text": raw[:max_chars],
+            "name": p.name,
+            "truncated": len(raw) > max_chars,
+        }
+
+    def ai_summarize_file_local(self, file_path: str, max_chars: int = 50_000) -> dict:
+        """Extractive summary without external AI (Claude optional later)."""
+        r = self.ai_read_text_for_prompt(file_path, max_chars)
+        if not r.get("ok"):
+            return {"message": r["message"], "result": None}
+
+        snippet = r["text"]
+        lines = [ln.strip() for ln in snippet.splitlines() if ln.strip()]
+        head = lines[:5]
+        words = len(snippet.split())
+        bullets = [f"({len(lines)} non-empty lines in preview; ~{words} words)"]
+        bullets.extend(head[:5])
+
+        return {
+            "message": f'Local summary for "{r["name"]}" (set ANTHROPIC_API_KEY in server/.env for Claude).',
+            "result": bullets,
+        }

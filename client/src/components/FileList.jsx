@@ -43,7 +43,8 @@ function pathThroughSegments(fullPath, endIdx) {
   if (/^[a-zA-Z]:$/.test(segments[0])) {
     const drive = segments[0]
     const rest = segments.slice(1)
-    const slice = rest.slice(0, endIdx + 1)
+    // endIdx indexes full segments (0 = drive only); rest omits the drive, so use slice(0, endIdx).
+    const slice = rest.slice(0, endIdx)
     return slice.length ? `${drive}/${slice.join('/')}` : `${drive}/`
   }
 

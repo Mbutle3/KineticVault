@@ -27,6 +27,8 @@ export default function FileSearch({ root, rootLabel, onPick, onError }) {
   const [loading, setLoading] = useState(false)
   const wrapRef = useRef(null)
   const inputRef = useRef(null)
+  const onErrorRef = useRef(onError)
+  onErrorRef.current = onError
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query), 280)
@@ -46,19 +48,19 @@ export default function FileSearch({ root, rootLabel, onPick, onError }) {
       const res = await fetch(url)
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        onError?.(err.detail || 'Search failed')
+        onErrorRef.current?.(err.detail || 'Search failed')
         setResults([])
         return
       }
       const data = await res.json()
       setResults(Array.isArray(data) ? data : [])
     } catch {
-      onError?.('Network error while searching')
+      onErrorRef.current?.('Network error while searching')
       setResults([])
     } finally {
       setLoading(false)
     }
-  }, [debounced, root, onError])
+  }, [debounced, root])
 
   useEffect(() => {
     if (!open) return

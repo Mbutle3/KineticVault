@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 
-const COLORS = { dark: 0xd2d7df, light: 0x8a897c }
+/* Soft neutral specks — matches gray bases; brand color is in the UI chrome */
+const COLORS = { dark: 0x80868b, light: 0x9aa0a6 }
 
 /**
  * Subtle full-screen particle field; pulses when `motionEpoch` changes (folder / tab navigation).

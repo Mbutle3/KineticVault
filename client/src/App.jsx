@@ -44,7 +44,7 @@ export default function App() {
   const [pinRefreshToken, setPinRefreshToken] = useState(0)
 
   const [theme, setTheme] = useState(() =>
-    localStorage.getItem('kv-theme') === 'light' ? 'light' : 'dark'
+    localStorage.getItem('kv-theme') === 'dark' ? 'dark' : 'light'
   )
 
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -295,6 +295,27 @@ export default function App() {
     (item) => {
       if (item.type === 'folder') loadDirectory(item.path)
       else openFile(item)
+    },
+    [loadDirectory, openFile]
+  )
+
+  const handleSearchError = useCallback(
+    (msg) => {
+      addToast(msg, 'error')
+    },
+    [addToast]
+  )
+
+  const handleAiOpenResult = useCallback(
+    (item) => {
+      const path = item?.path
+      if (!path) return
+      if (item.kind === 'folder') {
+        loadDirectory(path)
+        return
+      }
+      const name = path.replace(/\\/g, '/').split('/').filter(Boolean).pop() || path
+      void openFile({ path, name, type: 'file' })
     },
     [loadDirectory, openFile]
   )
@@ -674,15 +695,17 @@ export default function App() {
 
       {/* Header */}
       <header className="app-header app-layer">
-        <div className="app-header__logo">
-          The <span>Kinetic</span> Vault
+        <div className="app-header__logo" aria-label="The Kinetic Vault">
+          <span className="app-header__logo-b">The</span>{' '}
+          <span className="app-header__logo-r">Kinetic</span>{' '}
+          <span className="app-header__logo-g">Vault</span>
         </div>
         <div className="app-header__search-wrap">
           <FileSearch
             root={currentPath || homePath || ''}
             rootLabel={currentPath ? 'current folder' : homePath ? 'home' : ''}
             onPick={handleSearchPick}
-            onError={(msg) => addToast(msg, 'error')}
+            onError={handleSearchError}
           />
         </div>
         <div className="app-header__actions">
@@ -788,7 +811,11 @@ export default function App() {
           onMouseDown={startCommandBarResize}
         />
 
-        <CommandBar activeFile={openTabs.find((t) => t.path === activeTab) ?? null} />
+        <CommandBar
+          activeFile={openTabs.find((t) => t.path === activeTab) ?? null}
+          currentPath={currentPath}
+          onOpenAiResult={handleAiOpenResult}
+        />
       </div>
 
       {/* Context menu */}
