@@ -22,8 +22,13 @@ Kinetic Vault is a **local power tool**. The backend API can **create / overwrit
 
 **Portfolio-ready** for a local-first demo: mock mode is safe by default, and real mode is token-gated.
 
+### Demo video & live preview
+
+- **Video walkthrough** (recorded demo): [`docs/demo/kinetic-vault-demo.mp4`](docs/demo/kinetic-vault-demo.mp4) — also viewable on GitHub: [open in browser / download](https://github.com/Mbutle3/KineticVault/blob/main/docs/demo/kinetic-vault-demo.mp4).
+- **Live mock UI** (GitHub Pages, no backend): [https://mbutle3.github.io/KineticVault/](https://mbutle3.github.io/KineticVault/)
+
 Suggested finishing touches:
-- Add **screenshots** + a short **demo video** to this README.
+- Add a few **screenshots** in this README (optional; video + live link already cover the demo).
 - (Optional) Add **CI** (build/lint) for an extra “professional repo” signal.
 
 Dependency note: `npm audit` currently reports **0 vulnerabilities** on the provided setup.
